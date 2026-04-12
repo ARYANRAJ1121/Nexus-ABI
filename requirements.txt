@@ -1,0 +1,79 @@
+# =============================================================================
+# NEXUS-ABI: Requirements File
+# =============================================================================
+# Install everything with:  pip install -r requirements.txt
+# Python version required:  3.11+
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# LAYER 1: DATA ENGINE
+# Tools for generating synthetic data and cleaning it at scale
+# -----------------------------------------------------------------------------
+faker==40.13.0              # Generates realistic fake business data (names, emails, transactions)
+pandas==2.2.2               # Core dataframe library — the workhorse of data manipulation
+numpy==1.26.4               # Numerical operations, arrays, math foundations
+pyarrow==15.0.2             # Fast columnar data format, used by PySpark and pandas together
+pyspark==3.5.1              # Distributed data processing — handles millions of rows efficiently
+sqlalchemy==2.0.30          # ORM layer for talking to PostgreSQL in Python
+psycopg2-binary==2.9.9      # PostgreSQL driver — the actual wire connection to the DB
+
+
+# -----------------------------------------------------------------------------
+# LAYER 2: PREDICTIVE CORE
+# Traditional ML for churn prediction and CLV — the "numerical ground truth"
+# -----------------------------------------------------------------------------
+xgboost==2.0.3              # Gradient boosting model — fast, accurate, industry standard
+scikit-learn==1.4.2         # ML utilities: train/test split, metrics, preprocessing pipelines
+joblib==1.4.2               # Saves trained models to disk (.pkl files) for reuse
+matplotlib==3.8.4           # Plotting model evaluation charts
+seaborn==0.13.2             # Beautiful statistical visualizations on top of matplotlib
+
+
+# -----------------------------------------------------------------------------
+# LAYER 3: SEMANTIC LAYER
+# No extra libraries needed — pure Python KPI definitions
+# (This is the anti-hallucination governor — defined entirely in our own code)
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# LAYER 4: AGENTIC ENGINE
+# The multi-agent AI brain — LangGraph + Ollama + RAG tools
+# -----------------------------------------------------------------------------
+langchain==0.2.14                   # Base framework for building LLM-powered chains
+langchain-community==0.2.14         # Community integrations: ChromaDB, Ollama, SQL tools
+langchain-ollama==0.1.3             # Direct integration with local Ollama (Llama 3)
+langgraph==0.1.19                   # Multi-agent orchestration with stateful graph workflows
+chromadb==0.5.3                     # Local vector database — stores document embeddings for RAG
+sentence-transformers==3.0.1        # Converts text into semantic vectors (embeddings)
+tiktoken==0.7.0                     # Token counting — helps manage LLM context window limits
+
+
+# -----------------------------------------------------------------------------
+# LAYER 5: DASHBOARD BRIDGE
+# Connects Python logic to Power BI via a lightweight API
+# -----------------------------------------------------------------------------
+fastapi==0.111.0            # Lightweight API framework — exposes agent answers to Power BI
+uvicorn==0.30.1             # ASGI server that runs the FastAPI app locally
+httpx==0.27.0               # Async HTTP client — used for calling the Ollama REST endpoint
+python-dotenv==1.0.1        # Loads .env files — keeps secrets (DB passwords) out of code
+
+
+# -----------------------------------------------------------------------------
+# LAYER 6: EVALUATION SUITE
+# Measures if the AI is actually accurate — the 2026 production standard
+# -----------------------------------------------------------------------------
+deepeval==0.21.73           # LLM evaluation framework: tests RAG faithfulness, SQL accuracy
+ragas==0.1.14               # RAG-specific evaluation: context relevance, answer correctness
+
+
+# -----------------------------------------------------------------------------
+# UTILITIES
+# Shared tools used across all layers
+# -----------------------------------------------------------------------------
+python-dateutil==2.9.0.post0    # Advanced date parsing (used in synthetic data generation)
+tqdm==4.66.4                    # Progress bars for long-running training/ingestion loops
+loguru==0.7.2                   # Beautiful structured logging — better than print() everywhere
+rich==13.7.1                    # Rich terminal output: tables, panels, progress displays
+pydantic==2.7.4                 # Data validation and settings management across all modules
