@@ -39,9 +39,8 @@ import pandas as pd
 from loguru import logger
 from sqlalchemy import create_engine, text, inspect
 
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+import os
+os.environ["PYTHONUTF8"] = "1"
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION

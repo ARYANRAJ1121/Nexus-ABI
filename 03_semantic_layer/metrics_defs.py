@@ -46,11 +46,8 @@ from loguru import logger
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-import sys, io
-
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+import sys, io, os
+os.environ["PYTHONUTF8"] = "1"
 
 console = Console()
 

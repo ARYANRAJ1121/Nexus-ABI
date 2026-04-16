@@ -40,9 +40,8 @@ import io
 import httpx
 from loguru import logger
 
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+import os
+os.environ["PYTHONUTF8"] = "1"
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION — Change these to swap models or hosts
