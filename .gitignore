@@ -38,6 +38,7 @@ __pycache__/
 
 # Personal notes — never commit
 UNDERSTANDING.md
+UNDERSTANDING.html
 
 # OS files
 .DS_Store
