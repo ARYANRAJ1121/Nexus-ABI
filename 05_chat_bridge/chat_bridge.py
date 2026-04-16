@@ -395,6 +395,190 @@ async def schema():
 
 
 # ---------------------------------------------------------------------------
+# POWER BI ENDPOINTS
+# All GET requests returning flat JSON tables — directly consumable by
+# Power BI's Web connector without any transformation needed.
+#
+# In Power BI Desktop:
+#   Home → Get Data → Web → paste the URL → Load
+# ---------------------------------------------------------------------------
+
+@app.get("/powerbi/kpis", tags=["Power BI"])
+async def powerbi_kpis():
+    """
+    **Power BI Ready — KPI Summary Card Data**
+
+    Returns all 9 KPIs as a flat list. Each row has: name, value, unit.
+    Use this to populate KPI cards at the top of your dashboard.
+
+    Power BI: Get Data → Web → `http://localhost:8000/powerbi/kpis`
+    Then: Convert to Table → Expand columns → use value for card visuals.
+    """
+    from utils.db_config import run_query
+    df = run_query("SELECT * FROM customers")
+
+    scalar_metrics = [
+        "churn_rate", "mrr", "revenue_at_risk", "arpu",
+        "avg_clv", "support_ticket_rate", "enterprise_churn_rate",
+        "avg_tenure_churned", "inactive_rate",
+    ]
+
+    rows = []
+    for name in scalar_metrics:
+        metric = METRICS[name]
+        try:
+            value = metric.compute(df)
+        except Exception:
+            value = None
+        rows.append({
+            "metric_name":   metric.display_name,
+            "value":         round(value, 2) if value is not None else None,
+            "unit":          metric.unit,
+            "owner":         metric.owner,
+            "metric_id":     name,
+        })
+    return rows
+
+
+@app.get("/powerbi/churn-by-industry", tags=["Power BI"])
+async def powerbi_churn_by_industry():
+    """
+    **Power BI Ready — Churn Rate by Industry (Bar Chart)**
+
+    Returns churn rate, customer count, and average spend per industry.
+    Use for a clustered bar chart: industry on X-axis, churn % on Y-axis.
+
+    Power BI: Get Data → Web → `http://localhost:8000/powerbi/churn-by-industry`
+    """
+    from utils.db_config import run_query
+    df = run_query("""
+        SELECT
+            industry,
+            COUNT(*)                                                      AS total_customers,
+            SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)                 AS churned_count,
+            ROUND(100.0 * SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)
+                  / COUNT(*), 2)                                          AS churn_rate_pct,
+            ROUND(AVG(monthly_spend), 2)                                  AS avg_monthly_spend,
+            ROUND(AVG(clv), 2)                                            AS avg_clv
+        FROM customers
+        GROUP BY industry
+        ORDER BY churn_rate_pct DESC
+    """)
+    return df.to_dict(orient="records")
+
+
+@app.get("/powerbi/churn-by-plan", tags=["Power BI"])
+async def powerbi_churn_by_plan():
+    """
+    **Power BI Ready — Churn Rate by Plan Type (Donut / Bar Chart)**
+
+    Returns churn breakdown by subscription plan — Starter, Growth,
+    Enterprise, Legacy. Use with a donut chart or stacked bar.
+
+    Power BI: Get Data → Web → `http://localhost:8000/powerbi/churn-by-plan`
+    """
+    from utils.db_config import run_query
+    df = run_query("""
+        SELECT
+            plan_type,
+            COUNT(*)                                                      AS total_customers,
+            SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)                 AS churned_count,
+            ROUND(100.0 * SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)
+                  / COUNT(*), 2)                                          AS churn_rate_pct,
+            ROUND(SUM(monthly_spend), 2)                                  AS total_mrr,
+            ROUND(AVG(clv), 2)                                            AS avg_clv
+        FROM customers
+        GROUP BY plan_type
+        ORDER BY churn_rate_pct DESC
+    """)
+    return df.to_dict(orient="records")
+
+
+@app.get("/powerbi/at-risk-customers", tags=["Power BI"])
+async def powerbi_at_risk_customers():
+    """
+    **Power BI Ready — Top 50 At-Risk Active Customers (Table Visual)**
+
+    Returns active customers most likely to churn, ranked by:
+    - Days inactive (highest = most at risk)
+    - Support ticket count (highest = most frustrated)
+    - CLV (highest = most valuable to save)
+
+    Use as a drill-through table: click a segment → see the exact accounts.
+
+    Power BI: Get Data → Web → `http://localhost:8000/powerbi/at-risk-customers`
+    """
+    from utils.db_config import run_query
+    import joblib, json
+    import pandas as pd
+
+    # Load model for live churn scoring
+    MODEL_DIR = PROJECT_ROOT / "02_predictive_core" / "models"
+    try:
+        churn_model   = joblib.load(MODEL_DIR / "churn_model.pkl")
+        with open(MODEL_DIR / "feature_names.json") as f:
+            feature_names = json.load(f)
+        model_loaded = True
+    except Exception:
+        model_loaded = False
+
+    df = run_query("""
+        SELECT
+            customer_id, company_name, contact_name, email,
+            industry, region, plan_type,
+            monthly_spend, clv, tenure_months,
+            support_tickets_count, last_login_days_ago, num_users,
+            churned
+        FROM customers
+        WHERE churned = 0
+        ORDER BY last_login_days_ago DESC, support_tickets_count DESC
+        LIMIT 50
+    """)
+
+    # Score with XGBoost if model is available
+    if model_loaded and not df.empty:
+        try:
+            fe = pd.DataFrame()
+            fe["tenure_months"]         = df["tenure_months"].clip(lower=1)
+            fe["monthly_spend"]         = df["monthly_spend"].clip(lower=0)
+            fe["support_tickets_count"] = df["support_tickets_count"].clip(lower=0)
+            fe["last_login_days_ago"]   = df["last_login_days_ago"].clip(lower=0)
+            fe["num_users"]             = df["num_users"].clip(lower=1)
+            fe["spend_per_user"]        = (fe["monthly_spend"] / fe["num_users"]).round(2)
+            fe["ticket_rate"]           = (fe["support_tickets_count"] / fe["tenure_months"]).round(4)
+            fe["is_new_customer"]       = (fe["tenure_months"] < 6).astype(int)
+            fe["is_inactive"]           = (fe["last_login_days_ago"] > 30).astype(int)
+            fe["is_legacy_plan"]        = (df["plan_type"] == "Legacy").astype(int)
+            fe["revenue_risk"]          = (
+                fe["monthly_spend"] * (fe["is_inactive"] + fe["ticket_rate"] + fe["is_new_customer"])
+            ).round(2)
+            plan_map = {"Starter": 0, "Growth": 1, "Enterprise": 2, "Legacy": 3}
+            fe["plan_encoded"]     = df["plan_type"].map(plan_map).fillna(0).astype(int)
+            fe["industry_encoded"] = 0
+            fe["region_encoded"]   = 0
+            fe = fe[feature_names]
+
+            probs = churn_model.predict_proba(fe)[:, 1]
+            df["churn_probability_pct"] = (probs * 100).round(1)
+        except Exception:
+            df["churn_probability_pct"] = None
+    else:
+        df["churn_probability_pct"] = None
+
+    # Risk label
+    def risk_label(prob):
+        if prob is None: return "Unknown"
+        if prob >= 70:   return "🔴 Critical"
+        if prob >= 40:   return "🟡 High"
+        return                  "🟢 Medium"
+
+    df["risk_level"] = df["churn_probability_pct"].apply(risk_label)
+    df = df.sort_values("churn_probability_pct", ascending=False)
+
+    return df.to_dict(orient="records")
+
+
+# ---------------------------------------------------------------------------
 # ERROR HANDLERS
 # ---------------------------------------------------------------------------
 
@@ -407,6 +591,7 @@ async def not_found(request: Request, exc):
             "message": f"'{request.url.path}' does not exist. Visit /docs to see all endpoints.",
         },
     )
+
 
 
 # ---------------------------------------------------------------------------
