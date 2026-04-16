@@ -90,14 +90,14 @@ At current 20.64% churn rate: $51,816 annual revenue at risk.
           ┌────────────────────┼────────────────────┐
           ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────┐
-│  Layer 3:       │  │  Layer 2:       │  │  Layer 1:        │
-│  Semantic Layer │  │  Predictive     │  │  Data Engine     │
+│  Layer 1:       │  │  Layer 2:       │  │  Layer 3:        │
+│  Data Engine    │  │  Predictive     │  │  Semantic Layer  │
 │                 │  │  Core           │  │                  │
-│  10 KPIs        │  │  XGBoost Churn  │  │  PySpark         │
-│  defined as     │  │  Classifier     │  │  cleaning        │
-│  code — the     │  │  XGBoost CLV    │  │  10K customers   │
-│  anti-halluc.   │  │  Regressor      │  │  50K txns        │
-│  governor       │  │  AUC 0.65       │  │  2K tickets      │
+│  PySpark        │  │  XGBoost Churn  │  │  10 KPIs         │
+│  cleaning       │  │  Classifier     │  │  defined as      │
+│  10K customers  │  │  XGBoost CLV    │  │  code — the      │
+│  50K txns       │  │  Regressor      │  │  anti-halluc.    │
+│  2K tickets     │  │  AUC 0.65       │  │  governor        │
 └─────────────────┘  └─────────────────┘  └──────────────────┘
 ```
 
