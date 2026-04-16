@@ -36,6 +36,9 @@ __pycache__/
 .env
 *.env
 
+# Personal notes — never commit
+UNDERSTANDING.md
+
 # OS files
 .DS_Store
 Thumbs.db
