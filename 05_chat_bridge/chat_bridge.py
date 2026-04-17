@@ -578,6 +578,116 @@ async def powerbi_at_risk_customers():
     return df.to_dict(orient="records")
 
 
+@app.get("/powerbi/churn-by-region", tags=["Power BI"])
+async def powerbi_churn_by_region():
+    """**Power BI Ready — Churn Rate by Region (Bar Chart)**"""
+    from utils.db_config import run_query
+    df = run_query("""
+        SELECT
+            region,
+            COUNT(*)                                                      AS total_customers,
+            SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)                 AS churned_count,
+            ROUND(100.0 * SUM(CASE WHEN churned = 1 THEN 1 ELSE 0 END)
+                  / COUNT(*), 2)                                          AS churn_rate_pct,
+            ROUND(AVG(monthly_spend), 2)                                  AS avg_monthly_spend,
+            ROUND(SUM(monthly_spend), 2)                                  AS total_mrr
+        FROM customers
+        GROUP BY region
+        ORDER BY churn_rate_pct DESC
+    """)
+    return df.to_dict(orient="records")
+
+
+@app.get("/powerbi/support-issues", tags=["Power BI"])
+async def powerbi_support_issues():
+    """**Power BI Ready — Support Ticket Issue Type Breakdown**"""
+    from utils.db_config import run_query
+    df = run_query("""
+        SELECT
+            sl.issue_type,
+            COUNT(*)                                       AS ticket_count,
+            COUNT(DISTINCT sl.customer_id)                AS unique_customers,
+            ROUND(AVG(sl.resolution_days), 2)             AS avg_resolution_days,
+            SUM(CASE WHEN c.churned = 1 THEN 1 ELSE 0 END) AS churned_customers
+        FROM support_logs sl
+        JOIN customers c ON sl.customer_id = c.customer_id
+        GROUP BY sl.issue_type
+        ORDER BY ticket_count DESC
+    """)
+    return df.to_dict(orient="records")
+
+
+@app.get("/powerbi/churned-customers", tags=["Power BI"])
+async def powerbi_churned_customers():
+    """**Power BI Ready — Lost Accounts (Churned Customers)**"""
+    from utils.db_config import run_query
+    df = run_query("""
+        SELECT
+            c.customer_id, c.company_name, c.contact_name, c.email,
+            c.industry, c.region, c.plan_type,
+            c.monthly_spend, c.clv, c.tenure_months,
+            c.support_tickets_count, c.last_login_days_ago,
+            c.num_users,
+            ROUND(c.monthly_spend * 12, 2) AS annual_revenue_lost
+        FROM customers c
+        WHERE c.churned = 1
+        ORDER BY c.monthly_spend DESC
+        LIMIT 100
+    """)
+    return df.to_dict(orient="records")
+
+
+@app.get("/powerbi/health-distribution", tags=["Power BI"])
+async def powerbi_health_distribution():
+    """**Power BI Ready — Customer Health Score Distribution (Histogram buckets)**"""
+    from utils.db_config import run_query
+    import joblib, json, pandas as pd
+
+    MODEL_DIR = PROJECT_ROOT / "02_predictive_core" / "models"
+    try:
+        churn_model   = joblib.load(MODEL_DIR / "churn_model.pkl")
+        with open(MODEL_DIR / "feature_names.json") as f:
+            feature_names = json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
+
+    df = run_query("""
+        SELECT tenure_months, monthly_spend, support_tickets_count,
+               last_login_days_ago, num_users, plan_type, churned
+        FROM customers
+        WHERE churned = 0
+        LIMIT 2000
+    """)
+
+    fe = pd.DataFrame()
+    fe["tenure_months"]         = df["tenure_months"].clip(lower=1)
+    fe["monthly_spend"]         = df["monthly_spend"].clip(lower=0)
+    fe["support_tickets_count"] = df["support_tickets_count"].clip(lower=0)
+    fe["last_login_days_ago"]   = df["last_login_days_ago"].clip(lower=0)
+    fe["num_users"]             = df["num_users"].clip(lower=1)
+    fe["spend_per_user"]        = (fe["monthly_spend"] / fe["num_users"]).round(2)
+    fe["ticket_rate"]           = (fe["support_tickets_count"] / fe["tenure_months"]).round(4)
+    fe["is_new_customer"]       = (fe["tenure_months"] < 6).astype(int)
+    fe["is_inactive"]           = (fe["last_login_days_ago"] > 30).astype(int)
+    fe["is_legacy_plan"]        = (df["plan_type"] == "Legacy").astype(int)
+    fe["revenue_risk"]          = (fe["monthly_spend"] * (fe["is_inactive"] + fe["ticket_rate"] + fe["is_new_customer"])).round(2)
+    plan_map = {"Starter": 0, "Growth": 1, "Enterprise": 2, "Legacy": 3}
+    fe["plan_encoded"]     = df["plan_type"].map(plan_map).fillna(0).astype(int)
+    fe["industry_encoded"] = 0
+    fe["region_encoded"]   = 0
+    fe = fe[feature_names]
+
+    probs = (churn_model.predict_proba(fe)[:, 1] * 100).round(1)
+
+    # Return histogram buckets
+    import numpy as np
+    bins   = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    labels = ["0-10%","10-20%","20-30%","30-40%","40-50%","50-60%","60-70%","70-80%","80-90%","90-100%"]
+    counts, _ = np.histogram(probs, bins=bins)
+    return [{"bucket": labels[i], "count": int(counts[i]), "risk": "Critical" if i >= 6 else "High" if i >= 3 else "Safe"}
+            for i in range(len(labels))]
+
+
 # ---------------------------------------------------------------------------
 # ERROR HANDLERS
 # ---------------------------------------------------------------------------
