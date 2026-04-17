@@ -448,7 +448,7 @@ elif page == "📉 Lost Accounts":
             color_continuous_scale = "Reds",
             hover_data = {"tenure_months": True, "support_tickets_count": True},
         )
-        fig3.update_layout(**CHART_LAYOUT, height=380, margin=dict(l=0,r=0,t=30,b=0))
+        fig3.update_layout(**CHART_LAYOUT, height=380)
         st.plotly_chart(fig3, use_container_width=True)
 
         # ── Filters + table ───────────────────────────────────────────────────
