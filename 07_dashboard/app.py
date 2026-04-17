@@ -263,11 +263,11 @@ if page == "📊 Overview":
         if not issues.empty:
             issues = issues.sort_values("ticket_count", ascending=True)
             fig4 = px.bar(issues, x="ticket_count", y="issue_type", orientation="h",
-                          color="avg_resolution_days", color_continuous_scale="Blues",
+                          color="negative_sentiment", color_continuous_scale="Reds",
                           text="ticket_count",
                           hover_data={"unique_customers": True, "churned_customers": True},
                           labels={"ticket_count": "Tickets", "issue_type": "",
-                                  "avg_resolution_days": "Avg Resolution (days)"})
+                                  "negative_sentiment": "Negative Sentiment Count"})
             fig4.update_traces(textposition="outside")
             fig4.update_layout(**CHART_LAYOUT, height=310)
             fig4.update_xaxes(showgrid=False, showticklabels=False)

@@ -605,9 +605,9 @@ async def powerbi_support_issues():
     df = run_query("""
         SELECT
             sl.issue_type,
-            COUNT(*)                                       AS ticket_count,
-            COUNT(DISTINCT sl.customer_id)                AS unique_customers,
-            ROUND(AVG(sl.resolution_days), 2)             AS avg_resolution_days,
+            COUNT(*)                                        AS ticket_count,
+            COUNT(DISTINCT sl.customer_id)                  AS unique_customers,
+            SUM(CASE WHEN sl.sentiment = 'Negative' THEN 1 ELSE 0 END) AS negative_sentiment,
             SUM(CASE WHEN c.churned = 1 THEN 1 ELSE 0 END) AS churned_customers
         FROM support_logs sl
         JOIN customers c ON sl.customer_id = c.customer_id
